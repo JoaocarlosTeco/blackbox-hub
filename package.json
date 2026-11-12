@@ -1,0 +1,12 @@
+{
+  "name": "blackbox-hub",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Hub local para controlar a pedaleira M-VAVE ANNBLACK BOX pelo computador (Web MIDI + Web Audio).",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
