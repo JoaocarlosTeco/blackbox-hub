@@ -2,7 +2,7 @@
 // Estratégia: entrega a cópia salva na hora e, se houver internet, atualiza em segundo plano
 // (a versão nova aparece na próxima vez que o app for aberto).
 
-const APP_CACHE = 'bbhub-app-v2';
+const APP_CACHE = 'bbhub-app-v3';
 const FONT_CACHE = 'bbhub-fonts';
 const ASSETS = [
   './',
@@ -30,8 +30,11 @@ const ASSETS = [
   'js/views/settings.js',
 ];
 
+// cache: 'reload' ignora o cache HTTP do navegador (o GitHub Pages manda guardar por 10 minutos);
+// sem isso, uma versão nova do app poderia ser instalada com arquivos antigos.
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(APP_CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  const fresh = ASSETS.map((url) => new Request(url, { cache: 'reload' }));
+  event.waitUntil(caches.open(APP_CACHE).then((c) => c.addAll(fresh)).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (event) => {
@@ -57,7 +60,9 @@ async function staleWhileRevalidate(event, cacheName) {
   const req = event.request;
   const cache = await caches.open(cacheName);
   const cached = await cache.match(req, { ignoreSearch: true });
-  const network = fetch(req)
+  // 'no-cache' confere com o servidor (ETag) em vez de confiar no cache HTTP.
+  // Pedidos de navegação não aceitam opções extras, então vão pela URL.
+  const network = fetch(req.mode === 'navigate' ? req.url : req, { cache: 'no-cache' })
     .then((res) => {
       if (res && res.ok) cache.put(req, res.clone());
       return res;
