@@ -13,7 +13,7 @@ Painel para usar a pedaleira **M-VAVE ANNBLACK BOX** pelo navegador: trocar pres
 | Tela | O que faz |
 |---|---|
 | **Palco** | O pedal na tela: footswitches para trocar de preset, preset atual com nome e cor, módulos, bateria, favoritos e músicas do setlist. |
-| **Presets** | Os 80 presets (P01–P80): toque para trocar no pedal; dê nome, cor e anotações; marque favoritos. |
+| **Presets** | Os 80 presets (P01–P80): toque para trocar no pedal; dê nome, cor e anotações; marque favoritos. Inclui o pacote **Violão do Teco** (P60–P68, com P64 mudo) e um guia do que é cada parte do som. |
 | **Bateria** | 16 ritmos prontos (rock, pop, funk, blues, 6/8, valsa, bossa nova, samba, baião, metrônomo...), tap tempo, swing, viradas e editor para criar ritmos. |
 | **Músicas** | Cada música tem andamento, ritmo e partes (intro, verso, refrão...). Ao tocar, a bateria acompanha e o preset do pedal muda sozinho no começo de cada parte. Organize em setlists. |
 | **Controles** | Liga/desliga dos módulos (FX, AMP, MOD, DLY, REV, CAB) e uma varredura guiada para descobrir outros comandos. |
@@ -79,7 +79,7 @@ Pelas [notas de versão oficiais do firmware](https://yms-file-store.oss-cn-hong
 ## Próximos passos
 
 - **Editor de presets:** ler os 80 presets do pedal, fazer backup, editar e gravar. Depende do protocolo próprio da M-VAVE, documentado pela comunidade (por exemplo [jvsobrinho/mvave-blackbox-ble](https://github.com/jvsobrinho/mvave-blackbox-ble)). A ideia é começar só com leitura.
-- **Pacotes de presets prontos**, como um conjunto para violão com um preset mudo.
+- **Gravar os pacotes no pedal:** hoje o pacote Violão do Teco dá nomes e legendas no app; com o editor, as receitas viram ajustes gravados nos slots.
 - **Repetir uma parte da música** na hora (útil quando o refrão se repete ao vivo).
 
 ## Desenvolvimento

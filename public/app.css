@@ -370,6 +370,29 @@ input[type='range'] { accent-color: var(--key); width: 100%; min-width: 120px; }
 .tile-notes { font-size: 12px; color: var(--silk-dim); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .tile-tools { display: flex; justify-content: flex-end; padding: 0 6px 6px; margin-top: auto; }
 
+.pack-title { display: grid; gap: 4px; max-width: 70ch; }
+details > summary { cursor: pointer; font-weight: 600; padding: 4px 0; color: var(--silk); }
+details > summary::marker { color: var(--key); }
+.pack-list { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); }
+.pack-item {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: start;
+  padding: 12px 14px; background: var(--case); border: 1px solid var(--edge); border-radius: 12px;
+  box-shadow: inset 4px 0 0 var(--pc, var(--edge));
+}
+.pack-num { font-family: var(--font-display); font-size: 17px; border: 0; background: transparent; color: var(--silk); cursor: pointer; padding: 2px 0; }
+.pack-num:hover { color: var(--key-hi); }
+.pack-body h3 { font-size: 15px; font-weight: 600; }
+.pack-body > p { color: var(--silk-dim); font-size: 14px; margin: 2px 0 8px; }
+.recipe { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; font-size: 13px; color: var(--silk-dim); }
+.recipe li { display: flex; gap: 8px; align-items: baseline; }
+.chip {
+  font-family: var(--font-display); font-size: 10px; letter-spacing: .03em; padding: 2px 6px; border-radius: 4px; flex: none;
+  background: var(--mc, var(--silk-dim)); color: #06080c;
+}
+.chip.off { background: transparent; color: var(--silk-faint); box-shadow: inset 0 0 0 1px var(--edge); text-decoration: line-through; }
+.glossary dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 10px 14px; margin: 12px 0 0; align-items: baseline; }
+.glossary dd { margin: 0; color: var(--silk-dim); max-width: 70ch; }
+
 .swatches { display: flex; gap: 8px; flex-wrap: wrap; }
 .swatch { width: 30px; height: 30px; border-radius: 50%; border: 2px solid transparent; background: var(--sw); cursor: pointer; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .3); }
 .swatch.none { background: repeating-linear-gradient(45deg, var(--case-3) 0 4px, var(--case) 4px 8px); }

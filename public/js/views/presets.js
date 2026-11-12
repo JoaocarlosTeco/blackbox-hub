@@ -1,9 +1,73 @@
 // Presets: os 80 presets do pedal com nome, cor, anotações e favoritos guardados no hub.
 
-import { h, icon, pad2, openDialog, field, PRESET_COLORS } from '../ui.js';
+import { h, icon, pad2, openDialog, field, toast, confirmAsk, moduleColor, PRESET_COLORS } from '../ui.js';
+import { PACKS, GLOSSARY, slotNotes } from '../packs.js';
 
 let query = '';
 let onlyFavorites = false;
+const openPacks = new Set();
+
+async function applyPack(app, pack) {
+  const s = app.store.get();
+  const taken = pack.slots.filter((slot) => {
+    const cur = s.presets[slot.preset];
+    return cur && cur.name && cur.name !== slot.name;
+  });
+  if (taken.length) {
+    const list = taken.map((slot) => `P${pad2(slot.preset)} (${s.presets[slot.preset].name})`).join(', ');
+    const ok = await confirmAsk(`Estes presets já têm nome no hub e vão ser renomeados: ${list}. Os sons gravados no pedal não mudam.`, { title: `Usar o pacote ${pack.name}`, confirm: 'Renomear' });
+    if (!ok) return;
+  }
+  app.store.update((st) => {
+    for (const slot of pack.slots) {
+      const prev = st.presets[slot.preset] || {};
+      st.presets[slot.preset] = { ...prev, name: slot.name, color: slot.color, notes: slotNotes(slot) };
+    }
+  });
+  const first = pack.slots[0].preset;
+  const last = pack.slots[pack.slots.length - 1].preset;
+  toast(`Nomes e legendas aplicados de P${pad2(first)} a P${pad2(last)}.`, 'ok');
+}
+
+function packBlock(app, pack) {
+  const s = app.store.get();
+  const applied = pack.slots.every((slot) => s.presets[slot.preset] && s.presets[slot.preset].name === slot.name);
+  const first = pack.slots[0].preset;
+  const last = pack.slots[pack.slots.length - 1].preset;
+  const details = h('details', { class: 'pack-details', open: openPacks.has(pack.id) },
+    h('summary', {}, `Ver os ${pack.slots.length} presets e o que cada um faz`),
+    h('ol', { class: 'pack-list' }, pack.slots.map((slot) => h('li', { class: 'pack-item', style: { '--pc': slot.color || null } },
+      h('button', { class: 'pack-num', type: 'button', onclick: () => app.selectPreset(slot.preset), title: `Ativar P${pad2(slot.preset)} no pedal` }, `P${pad2(slot.preset)}`),
+      h('div', { class: 'pack-body' },
+        h('h3', {}, slot.name),
+        h('p', {}, slot.use),
+        h('ul', { class: 'recipe' }, slot.recipe.map((r) => h('li', {},
+          h('span', { class: `chip ${r.off ? 'off' : ''}`, style: { '--mc': moduleColor(r.module) } }, r.module),
+          h('span', {}, r.text)))))))));
+  details.addEventListener('toggle', () => {
+    if (details.open) openPacks.add(pack.id);
+    else openPacks.delete(pack.id);
+  });
+  return h('section', { class: 'block pack' },
+    h('div', { class: 'block-head' },
+      h('div', { class: 'pack-title' },
+        h('h2', {}, `Pacote ${pack.name}`),
+        h('p', { class: 'muted small' }, `${pack.summary} Instrumento: ${pack.instrument.toLowerCase()}.`)),
+      h('button', { class: `btn ${applied ? '' : 'primary'}`, type: 'button', onclick: () => applyPack(app, pack) },
+        icon(applied ? 'check' : 'plus'), applied ? 'Nomes aplicados' : 'Usar nomes e legendas')),
+    h('p', { class: 'note' }, `Por enquanto o pacote dá nome, cor e legenda aos presets P${pad2(first)} a P${pad2(last)} aqui no hub. Gravar os ajustes no pedal vai estar disponível quando o editor de presets ficar pronto; até lá, os sons do pedal não mudam.`),
+    details);
+}
+
+function glossaryBlock() {
+  return h('section', { class: 'block glossary' },
+    h('details', {},
+      h('summary', {}, 'O que é cada parte do som'),
+      h('dl', {}, GLOSSARY.map((g) => [
+        h('dt', {}, h('span', { class: 'chip', style: { '--mc': moduleColor(g.term) } }, g.term)),
+        h('dd', {}, g.text),
+      ]))));
+}
 
 function editPreset(app, n) {
   const info = app.presetInfo(n);
@@ -84,6 +148,7 @@ export function render(app) {
       h('div', {},
         h('h1', {}, 'Presets'),
         h('p', { class: 'lede' }, `Clique para trocar o preset no pedal. O pedal não informa os nomes dos presets, então os nomes e anotações ficam guardados aqui (${named} de ${app.total} com nome).`))),
+    PACKS.map((pack) => packBlock(app, pack)),
     h('div', { class: 'toolbar' },
       h('input', {
         class: 'input search', type: 'search', placeholder: 'Buscar por número, nome ou anotação', 'aria-label': 'Buscar presets', value: query,
@@ -92,6 +157,7 @@ export function render(app) {
       h('label', { class: 'check' },
         h('input', { type: 'checkbox', checked: onlyFavorites, onchange: (e) => { onlyFavorites = e.target.checked; draw(); } }),
         'Só favoritos')),
-    grid);
+    grid,
+    glossaryBlock());
   return { el };
 }
