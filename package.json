@@ -4,7 +4,8 @@
   "private": true,
   "description": "Hub local para controlar a pedaleira M-VAVE ANNBLACK BOX pelo computador (Web MIDI + Web Audio).",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test \"tests/*.test.mjs\""
   },
   "engines": {
     "node": ">=18"

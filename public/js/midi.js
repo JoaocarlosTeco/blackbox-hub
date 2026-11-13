@@ -1,60 +1,116 @@
-// Conexão Web MIDI com o pedal. Só usa mensagens MIDI padrão (Program Change e Control Change);
-// SysEx fica desligado, então o hub não consegue regravar presets nem firmware.
+// Conexão Web MIDI com o pedal.
+// - Mensagens padrão: Program Change (trocar preset) e Control Change (ligar/desligar módulos).
+// - SysEx (mensagens próprias da Black Box) só é pedido quando a pessoa lê, edita ou grava presets;
+//   o navegador mostra uma permissão separada para isso.
 
 const PEDAL_NAME = /usb-?midi|black ?box|m-?vave|annblack/i;
 const SOFTWARE_SYNTH = /wavetable|microsoft gs|midi through/i;
+
+function pickPort(ports, preferredName) {
+  const hardware = ports.filter((p) => !SOFTWARE_SYNTH.test(p.name));
+  // No Android o nome da porta pode ser diferente do Windows; se só existir um aparelho MIDI de verdade, usa ele.
+  return ports.find((p) => preferredName && p.name === preferredName)
+    || ports.find((p) => PEDAL_NAME.test(p.name))
+    || (hardware.length === 1 ? hardware[0] : null);
+}
 
 export class Midi extends EventTarget {
   constructor() {
     super();
     this.access = null;
     this.output = null;
+    this.input = null;
     this.status = 'idle'; // idle | connected | no-device | denied | unsupported
     this.error = '';
     this.channel = 15; // 0-based: 15 = canal 16
     this.preferredName = '';
+    this.sysex = false;
+    this.simulator = null;
+    this.sysexBuffer = null;
   }
 
   get supported() {
-    return typeof navigator.requestMIDIAccess === 'function';
+    return !!this.simulator || typeof navigator.requestMIDIAccess === 'function';
   }
 
   async autoConnect() {
-    if (!this.supported) return this.setStatus('unsupported');
+    if (this.simulator) return;
+    if (!this.supported) {
+      this.setStatus('unsupported');
+      return;
+    }
     try {
-      const perm = await navigator.permissions.query({ name: 'midi', sysex: false });
-      if (perm.state === 'granted') await this.connect();
+      const full = await navigator.permissions.query({ name: 'midi', sysex: true });
+      if (full.state === 'granted') {
+        await this.connect({ sysex: true });
+        return;
+      }
+      const basic = await navigator.permissions.query({ name: 'midi', sysex: false });
+      if (basic.state === 'granted') await this.connect();
     } catch { /* navegador sem Permissions API para MIDI: espera o clique */ }
   }
 
-  async connect() {
-    if (!this.supported) return this.setStatus('unsupported');
-    try {
-      this.access = await navigator.requestMIDIAccess({ sysex: false });
-      this.access.onstatechange = () => this.refresh();
+  // Devolve true se o acesso pedido foi liberado.
+  async connect({ sysex = false } = {}) {
+    if (this.simulator) return true;
+    if (!this.supported) {
+      this.setStatus('unsupported');
+      return false;
+    }
+    if (this.access && (this.sysex || !sysex)) {
       this.refresh();
+      return true;
+    }
+    try {
+      const access = await navigator.requestMIDIAccess({ sysex });
+      if (this.access) {
+        this.access.onstatechange = null;
+        for (const input of this.access.inputs.values()) input.onmidimessage = null;
+      }
+      this.access = access;
+      this.sysex = sysex;
+      access.onstatechange = () => this.refresh();
+      this.refresh();
+      return true;
     } catch (e) {
       this.error = e.message;
-      this.setStatus('denied');
+      if (!this.access) this.setStatus('denied');
+      return false;
     }
   }
 
+  useSimulator(pedal) {
+    this.simulator = pedal;
+    this.sysex = true;
+    this.input = { name: 'Pedal simulado' };
+    this.output = {
+      name: 'Pedal simulado',
+      send: (bytes) => {
+        for (const reply of pedal.handle(Array.from(bytes))) {
+          setTimeout(() => this.receive({ data: reply }, this.input), 15);
+        }
+      },
+    };
+    this.setStatus('connected');
+  }
+
   outputs() {
+    if (this.simulator) return [this.output];
     return this.access ? [...this.access.outputs.values()].filter((o) => o.state === 'connected') : [];
   }
 
   inputs() {
+    if (this.simulator) return [this.input];
     return this.access ? [...this.access.inputs.values()].filter((i) => i.state === 'connected') : [];
   }
 
   refresh() {
+    if (this.simulator) return;
     const outs = this.outputs();
-    // No Android o nome da porta pode ser diferente do Windows; se só existir um aparelho MIDI de verdade, usa ele.
-    const hardware = outs.filter((o) => !SOFTWARE_SYNTH.test(o.name));
-    this.output = outs.find((o) => this.preferredName && o.name === this.preferredName)
-      || outs.find((o) => PEDAL_NAME.test(o.name))
-      || (hardware.length === 1 ? hardware[0] : null);
-    for (const input of this.inputs()) {
+    const ins = this.inputs();
+    this.output = pickPort(outs, this.preferredName);
+    this.input = (this.output && ins.find((i) => i.name === this.output.name)) || pickPort(ins, this.preferredName);
+    for (const input of ins) {
       input.onmidimessage = (e) => this.receive(e, input);
     }
     this.setStatus(this.output ? 'connected' : 'no-device');
@@ -72,8 +128,20 @@ export class Midi extends EventTarget {
 
   receive(e, input) {
     const d = e.data;
-    if (!d || !d.length || d[0] === 0xf8 || d[0] === 0xfe) return; // clock e active sensing
-    this.dispatchEvent(new CustomEvent('message', { detail: { bytes: Array.from(d), port: input.name } }));
+    if (!d || !d.length) return;
+    // SysEx pode chegar em pedaços; junta até o F7.
+    if (d[0] === 0xf0 || this.sysexBuffer) {
+      const chunk = Array.from(d).filter((b) => b < 0xf8); // ignora mensagens de tempo real misturadas
+      this.sysexBuffer = this.sysexBuffer ? this.sysexBuffer.concat(chunk) : chunk;
+      if (chunk[chunk.length - 1] === 0xf7) {
+        const bytes = this.sysexBuffer;
+        this.sysexBuffer = null;
+        this.dispatchEvent(new CustomEvent('sysex', { detail: { bytes, port: input && input.name } }));
+      }
+      return;
+    }
+    if (d[0] === 0xf8 || d[0] === 0xfe) return; // clock e active sensing
+    this.dispatchEvent(new CustomEvent('message', { detail: { bytes: Array.from(d), port: input && input.name } }));
   }
 
   send(bytes, at) {

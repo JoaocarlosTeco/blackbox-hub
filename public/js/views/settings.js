@@ -163,7 +163,8 @@ export function render(app) {
       h('li', {}, h('b', {}, 'Confirmado no seu pedal: '), 'não envia nada pela USB quando você mexe nele, então o hub não consegue saber o preset atual se você trocar pelo pé.'),
       h('li', {}, h('b', {}, 'Pelas notas oficiais do firmware: '), 'CC 0 a 5 ligam e desligam FX, AMP, MOD, DLY, REV e CAB; a versão V21 acrescentou escolha de canal (1 a 16 ou OMNI), controle de modelos, parâmetros e tap tempo, sem publicar os números.'),
       h('li', {}, h('b', {}, 'Pelas notas oficiais do firmware: '), 'o som que sai do computador pela USB toca na saída do pedal, com volume controlado pelo computador.'),
-      h('li', {}, h('b', {}, 'Ainda não implementado: '), 'editar cada parâmetro dos efeitos, fazer backup dos 80 presets e carregar IRs. Isso usa um protocolo próprio da M-VAVE (SysEx), documentado só por engenharia reversa da comunidade, e fica para uma próxima etapa feita com cuidado.')));
+      h('li', {}, h('b', {}, 'Confirmado no seu pedal: '), 'pela USB o hub lê os 80 presets, muda o som ao vivo e grava presets nos slots (Presets > editor e pacotes). Usa o protocolo próprio da M-VAVE (SysEx), conhecido por engenharia reversa da comunidade. Toda gravação é conferida relendo o slot, e dá para desfazer.'),
+      h('li', {}, h('b', {}, 'Ainda não implementado: '), 'carregar amps e IRs, mudar os ajustes gerais do pedal (Master, canal MIDI, rabo do delay) e restaurar um backup completo de presets.')));
 
   // ---- Celular e palco ----
   const mobile = h('section', { class: 'block' },

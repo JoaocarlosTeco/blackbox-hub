@@ -1,8 +1,12 @@
 // Ponto de entrada: monta a casca do app, liga MIDI + bateria + estado e cuida da navegação.
 
-import { h, icon, toast, pad2, clamp } from './ui.js';
+import { h, icon, toast, pad2, clamp, confirmAsk } from './ui.js';
 import * as store from './store.js';
 import { Midi, describeMessage } from './midi.js';
+import { BlackBoxLink, pullAllPresets, sameBytes } from './blackbox/link.js';
+import { toHex, fromHex } from './blackbox/protocol.js';
+import { buildPreset } from './blackbox/preset.js';
+import { slotNotes } from './packs.js';
 import { DrumEngine, loopSequencer, songSequencer } from './drums/engine.js';
 import { BUILTIN_PATTERNS } from './drums/patterns.js';
 import * as stageView from './views/stage.js';
@@ -25,14 +29,24 @@ const VIEWS = [
 
 const midi = new Midi();
 const engine = new DrumEngine();
+const link = new BlackBoxLink(midi);
 const bus = new EventTarget();
+
+// ?simulador=1 liga um pedal de mentira (para testar sem o aparelho); ?simulador=lento obriga a leitura preset por preset.
+const simulatorParam = new URLSearchParams(location.search).get('simulador');
+if (simulatorParam !== null) {
+  const { FakePedal } = await import('./blackbox/fake-pedal.js');
+  midi.useSimulator(new FakePedal({ directSlotRead: simulatorParam !== 'lento' }));
+}
 let lastOfflineWarning = 0;
 
 const app = {
   store,
   midi,
   engine,
+  link,
   total: TOTAL_PRESETS,
+  pullState: { running: false, done: 0, total: TOTAL_PRESETS, phase: '', error: null, errorMessage: '', cancelRequested: false },
   rt: { mode: null, songId: null, fillQueued: false, learn: null, taps: [] },
   footActions: [
     { id: 'toggle-play', label: 'Tocar ou parar a bateria' },
@@ -193,6 +207,130 @@ const app = {
     this.setControl(id, isOn ? c.off : c.on);
   },
 
+  // ---- Conversa própria com o pedal (SysEx) ----
+  async ensureSysex() {
+    const granted = await midi.connect({ sysex: true });
+    if (!granted || !midi.sysex) throw Object.assign(new Error(midi.error), { code: 'no-sysex' });
+    if (midi.status !== 'connected') throw Object.assign(new Error(''), { code: 'no-device' });
+  },
+
+  // Grava os 92 bytes no P<n>, confere relendo e guarda o que havia antes (para desfazer).
+  async saveSlot(n, bytes, { label = 'Editor', keepHistory = true } = {}) {
+    await this.ensureSysex();
+    const { before, after } = await link.saveSlot(n - 1, bytes);
+    store.update((s) => {
+      if (!s.deviceDump) s.deviceDump = { pulledAt: new Date().toISOString(), method: 'direct', slots: {}, failed: [], names: {} };
+      s.deviceDump.slots[n] = toHex(after);
+      if (keepHistory && !sameBytes(before, after)) {
+        s.slotHistory[n] = [...(s.slotHistory[n] || []), { at: new Date().toISOString(), hex: toHex(before), label }].slice(-5);
+      }
+    });
+    return { before, after };
+  },
+
+  lastSaved(n) {
+    const list = store.get().slotHistory[n];
+    return list && list.length ? list[list.length - 1] : null;
+  },
+
+  // Volta o P<n> para o que havia antes da última gravação feita pelo hub.
+  async restoreSlot(n) {
+    const prev = this.lastSaved(n);
+    if (!prev) return false;
+    await this.saveSlot(n, fromHex(prev.hex), { keepHistory: false });
+    store.update((s) => { s.slotHistory[n] = (s.slotHistory[n] || []).slice(0, -1); });
+    return true;
+  },
+
+  // Grava os ajustes de um pacote nos slots dele e aplica nomes e legendas.
+  async writePack(pack, onProgress = () => {}) {
+    if (engine.playing) this.stop();
+    await this.ensureSysex();
+    const label = `Pacote ${pack.name}`;
+    const written = [];
+    for (const slot of pack.slots) {
+      onProgress(written.length, pack.slots.length, slot);
+      const base = await link.readSlot(slot.preset - 1);
+      await this.saveSlot(slot.preset, buildPreset(base, slot.sound), { label });
+      written.push(slot.preset);
+    }
+    store.update((s) => {
+      for (const slot of pack.slots) {
+        s.presets[slot.preset] = { ...(s.presets[slot.preset] || {}), name: slot.name, color: slot.color, notes: slotNotes(slot) };
+      }
+    });
+    onProgress(written.length, pack.slots.length, null);
+    // O pedal passa a tocar o primeiro preset do pacote, já com o som novo.
+    this.selectPreset(pack.slots[0].preset);
+    return written;
+  },
+
+  // Desfaz a gravação de um pacote nos slots em que ela foi a última feita pelo hub.
+  async undoPack(pack) {
+    await this.ensureSysex();
+    const label = `Pacote ${pack.name}`;
+    const restored = [];
+    for (const slot of pack.slots) {
+      const prev = this.lastSaved(slot.preset);
+      if (prev && prev.label === label && await this.restoreSlot(slot.preset)) restored.push(slot.preset);
+    }
+    const cur = store.get().currentPreset;
+    if (restored.includes(cur)) this.selectPreset(cur);
+    return restored;
+  },
+
+  // ---- Ler os presets gravados no pedal (só leitura) ----
+  async pullPresets() {
+    const st = this.pullState;
+    if (st.running) return;
+    if (engine.playing) this.stop();
+    Object.assign(st, { running: true, done: 0, total: TOTAL_PRESETS, phase: 'Pedindo permissão ao navegador', error: null, errorMessage: '', cancelRequested: false });
+    this.emit('pull');
+    try {
+      await this.ensureSysex();
+      st.phase = 'Conversando com o pedal';
+      this.emit('pull');
+      const result = await pullAllPresets(link, {
+        selectPreset: (n) => midi.programChange(n),
+        confirmSlowMode: () => confirmAsk(
+          'A leitura direta da memória não funcionou. Dá para ler trocando de preset um por um: o pedal passa pelos 80 sons (cerca de 1 minuto) e no fim volta para o preset em que estava. Ajustes não salvos no preset atual do pedal se perdem. Abaixe o volume antes de continuar.',
+          { title: 'Ler trocando os presets?', confirm: 'Ler trocando os presets' },
+        ),
+        onProgress: (done, total) => {
+          st.done = done;
+          st.total = total;
+          st.phase = `Lendo P${pad2(done)} de ${total}`;
+          this.emit('pull');
+        },
+        isCancelled: () => st.cancelRequested,
+      });
+      if (result.method === 'none') {
+        toast('Leitura cancelada. Nada foi alterado no pedal.', 'warn');
+      } else {
+        const slots = Object.fromEntries(Object.entries(result.slots).map(([n, bytes]) => [n, toHex(bytes)]));
+        store.update((s) => {
+          s.deviceDump = {
+            pulledAt: result.pulledAt, method: result.method, slots, failed: result.failed,
+            names: result.names, startPreset: result.startPreset, cancelled: result.cancelled,
+          };
+          // O pedal informou em que preset está: o hub passa a mostrar o mesmo.
+          if (result.startPreset) s.currentPreset = result.startPreset;
+        });
+        const count = Object.keys(slots).length;
+        toast(`${count} de ${TOTAL_PRESETS} presets lidos do pedal.`, count === TOTAL_PRESETS ? 'ok' : 'warn');
+      }
+    } catch (e) {
+      st.error = e.code || 'error';
+      st.errorMessage = e.message || '';
+    } finally {
+      st.running = false;
+      this.emit('pull');
+    }
+  },
+  cancelPull() {
+    this.pullState.cancelRequested = true;
+  },
+
   // ---- Footswitch externo ----
   learnFoot(actionId) {
     this.rt.learn = actionId;
@@ -291,7 +429,7 @@ function renderRail() {
   const s = store.get();
   const cur = s.currentPreset;
   const info = app.presetInfo(cur);
-  const [tone, text] = CONN[midi.status] || CONN.idle;
+  const [tone, text] = midi.simulator ? ['ok', 'Pedal simulado'] : CONN[midi.status] || CONN.idle;
   const playing = engine.playing;
   const song = app.rt.mode === 'song' ? s.songs.find((x) => x.id === app.rt.songId) : null;
   const nowLabel = song ? song.name : app.pattern(s.drums.patternId).name;

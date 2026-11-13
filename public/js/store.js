@@ -37,6 +37,8 @@ export function defaultState() {
     controls: moduleControls(),
     ccScan: { current: 6, results: {} },
     footswitch: [],
+    deviceDump: null, // presets lidos do pedal: { pulledAt, method, slots: { "1": "hex..." }, names, ... }
+    slotHistory: {}, // o que havia em cada slot antes de o hub gravar: { "60": [{ at, hex, label }] } (últimas 5)
     ui: { songId, keepAwake: true },
   };
 }
@@ -47,6 +49,7 @@ function migrate(saved) {
   for (const k of ['midi', 'audio', 'drums', 'ccScan', 'ui']) s[k] = { ...d[k], ...(saved[k] || {}) };
   for (const k of ['customPatterns', 'songs', 'setlists', 'controls', 'footswitch']) if (!Array.isArray(s[k])) s[k] = d[k];
   if (!s.presets || typeof s.presets !== 'object') s.presets = {};
+  if (!s.slotHistory || typeof s.slotHistory !== 'object') s.slotHistory = {};
   return s;
 }
 
