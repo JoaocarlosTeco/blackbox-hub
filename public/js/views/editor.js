@@ -13,7 +13,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const u16 = (b, o) => b[o] | (b[o + 1] << 8);
 
 export const WRITE_ERRORS = {
-  'no-sysex': 'O navegador não liberou o controle do pedal. Toque no cadeado ao lado do endereço, permita "Dispositivos MIDI" com controle total e tente de novo.',
+  'no-sysex': 'O navegador não liberou o controle do pedal. Nas configurações do site (cadeado ao lado do endereço; no app instalado, Configurações do Chrome > Configurações do site > Dispositivos MIDI), permita o controle total e tente de novo.',
   'no-device': 'O pedal não foi encontrado. Ligue o pedal, confira o cabo USB-C e tente de novo.',
   timeout: 'O pedal não respondeu a tempo. Confira o cabo e se outro programa está usando o pedal.',
   verify: 'A conferência depois de gravar não bateu.',

@@ -8,7 +8,7 @@ import { sameBytes } from '../blackbox/link.js';
 import { openPresetEditor, writeErrorText } from './editor.js';
 
 const PULL_ERRORS = {
-  'no-sysex': 'O navegador não liberou a permissão para ler o pedal. Toque no cadeado ao lado do endereço, permita "Dispositivos MIDI" com controle total e tente de novo.',
+  'no-sysex': 'O navegador não liberou a permissão para ler o pedal. Nas configurações do site (cadeado ao lado do endereço; no app instalado, Configurações do Chrome > Configurações do site > Dispositivos MIDI), permita o controle total e tente de novo.',
   'no-device': 'O pedal não foi encontrado. Ligue o pedal, confira o cabo USB-C e tente de novo.',
   'no-reply': 'O pedal não respondeu ao pedido de leitura pela USB. A troca de preset continua funcionando; só a leitura não. Pode ser que o pedal só aceite esses comandos pelo Bluetooth ou depois de uma conexão com o app oficial. Copie os detalhes técnicos abaixo para investigar.',
 };
@@ -326,6 +326,30 @@ function editPreset(app, n) {
   setTimeout(() => name.focus(), 30);
 }
 
+// Menu de ações de um preset (no celular os botões do card viram este menu).
+function presetActions(app, n) {
+  const info = app.presetInfo(n);
+  const decoded = decodedSlot(app, n);
+  const item = (iconName, title, text, run, primary = false) => h('button', {
+    class: `action-item ${primary ? 'primary' : ''}`, type: 'button',
+    onclick: () => { dlg.close(); run(); },
+  }, icon(iconName), h('strong', {}, title), text ? h('span', {}, text) : null);
+  const summary = decoded ? summarize(decoded) : '';
+  const dlg = openDialog({
+    title: `P${pad2(n)}${info.name ? ` ${info.name}` : ''}`,
+    body: h('div', { class: 'action-list' },
+      decoded
+        ? item('sliders', 'Editar o som', `Muda no pedal enquanto você mexe. Agora: ${summary}.`, () => openPresetEditor(app, n), true)
+        : h('p', { class: 'note small' }, 'Para ver e editar o som deste preset, leia os presets do pedal primeiro ("Puxar presets do pedal", no topo desta tela).'),
+      item('play', 'Tocar no pedal', 'Troca o pedal para este preset.', () => app.selectPreset(n)),
+      decoded ? item('info', 'Ver o que tem neste preset', 'Volume, ordem dos blocos e todos os ajustes.', () => showPresetDetail(app, n)) : null,
+      item('edit', 'Nome, cor e anotações', 'Ficam guardados aqui no hub.', () => editPreset(app, n))),
+    actions: [{ label: 'Fechar' }],
+  });
+}
+
+const BANKS = [1, 11, 21, 31, 41, 51, 61, 71];
+
 export function render(app) {
   const s = app.store.get();
   const cur = s.currentPreset;
@@ -348,15 +372,15 @@ export function render(app) {
           if (!b) return null;
           return h('span', { class: `mini ${b.on ? 'on' : ''}`, style: { '--mc': moduleColor(label) } }, label);
         })) : null;
-      tiles.push(h('div', { class: `tile ${n === cur ? 'is-current' : ''}`, style: { '--pc': info.color || null } },
+      tiles.push(h('div', { class: `tile ${n === cur ? 'is-current' : ''}`, style: { '--pc': info.color || null }, 'data-n': n },
         h('button', { class: 'tile-main', type: 'button', onclick: () => app.selectPreset(n), 'aria-label': `Ativar preset ${n}${info.name ? `, ${info.name}` : ''}` },
           h('span', { class: 'tile-num' }, pad2(n)),
           h('span', { class: `tile-name ${info.name ? '' : 'dim'}` }, info.name || 'Sem nome'),
           info.notes ? h('span', { class: 'tile-notes' }, info.notes) : null,
           chain),
         h('div', { class: 'tile-tools' },
-          decoded ? h('button', { class: 'icon-btn', type: 'button', 'aria-label': `Ver o que tem no P${pad2(n)}`, title: 'Ver o que tem neste preset', onclick: () => showPresetDetail(app, n) }, icon('info')) : null,
-          decoded ? h('button', { class: 'icon-btn', type: 'button', 'aria-label': `Editar o som do P${pad2(n)}`, title: 'Editar o som no pedal', onclick: () => openPresetEditor(app, n) }, icon('sliders')) : null,
+          decoded ? h('button', { class: 'icon-btn tool-info', type: 'button', 'aria-label': `Ver o que tem no P${pad2(n)}`, title: 'Ver o que tem neste preset', onclick: () => showPresetDetail(app, n) }, icon('info')) : null,
+          decoded ? h('button', { class: 'icon-btn tool-sound', type: 'button', 'aria-label': `Editar o som do P${pad2(n)}`, title: 'Editar o som no pedal', onclick: () => openPresetEditor(app, n) }, icon('sliders')) : null,
           h('button', {
             class: `icon-btn star ${info.favorite ? 'on' : ''}`,
             type: 'button',
@@ -364,7 +388,8 @@ export function render(app) {
             'aria-label': info.favorite ? `Tirar P${pad2(n)} dos favoritos` : `Marcar P${pad2(n)} como favorito`,
             onclick: () => app.store.update((st) => { st.presets[n] = { ...(st.presets[n] || {}), favorite: !info.favorite }; }),
           }, icon('star')),
-          h('button', { class: 'icon-btn', type: 'button', 'aria-label': `Nome, cor e anotações do P${pad2(n)}`, title: 'Nome, cor e anotações', onclick: () => editPreset(app, n) }, icon('edit')))));
+          h('button', { class: 'icon-btn tool-edit', type: 'button', 'aria-label': `Nome, cor e anotações do P${pad2(n)}`, title: 'Nome, cor e anotações', onclick: () => editPreset(app, n) }, icon('edit')),
+          h('button', { class: 'icon-btn tool-more', type: 'button', 'aria-label': `Mais opções do P${pad2(n)}`, onclick: () => presetActions(app, n) }, icon('more')))));
     }
     grid.replaceChildren(...(tiles.length ? tiles : [h('p', { class: 'muted' }, 'Nenhum preset encontrado com esse filtro.')]));
   };
@@ -372,21 +397,42 @@ export function render(app) {
 
   const named = Object.values(s.presets).filter((p) => p && p.name).length;
 
+  const search = h('input', {
+    class: 'input search', type: 'search', placeholder: 'Buscar por número, nome ou anotação', 'aria-label': 'Buscar presets', value: query,
+    enterkeyhint: 'search',
+    oninput: (e) => { query = e.target.value.trim().toLowerCase(); draw(); },
+  });
+  const favCheck = h('input', { type: 'checkbox', checked: onlyFavorites, onchange: (e) => { onlyFavorites = e.target.checked; draw(); } });
+  // Atalhos para ir direto a uma faixa de presets (útil no celular, com 80 presets na lista).
+  const jump = (start) => {
+    let tile = grid.querySelector(`[data-n="${start}"]`);
+    if (!tile && (query || onlyFavorites)) {
+      query = '';
+      onlyFavorites = false;
+      search.value = '';
+      favCheck.checked = false;
+      draw();
+      tile = grid.querySelector(`[data-n="${start}"]`);
+    }
+    if (tile) tile.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  const toolbar = h('div', { class: 'toolbar' },
+    search,
+    h('label', { class: 'check' }, favCheck, 'Só favoritos'),
+    h('div', { class: 'bank-jump', role: 'group', 'aria-label': 'Ir para os presets' },
+      BANKS.map((b) => h('button', {
+        class: `bank ${cur && cur >= b && cur < b + 10 ? 'has-current' : ''}`, type: 'button',
+        'aria-label': `Ir para P${pad2(b)} a P${pad2(b + 9)}`, onclick: () => jump(b),
+      }, pad2(b)))));
+
   const el = h('div', { class: 'view presets' },
     h('header', { class: 'view-head' },
       h('div', {},
         h('h1', {}, 'Presets'),
-        h('p', { class: 'lede' }, `Clique para trocar o preset no pedal. O pedal não informa os nomes dos presets, então os nomes e anotações ficam guardados aqui (${named} de ${app.total} com nome).`))),
+        h('p', { class: 'lede' }, `Escolha um preset para trocar no pedal. O pedal não guarda nomes, então os nomes e anotações ficam aqui no hub (${named} de ${app.total} com nome).`))),
     deviceBlock(app, offs),
     PACKS.map((pack) => packBlock(app, pack)),
-    h('div', { class: 'toolbar' },
-      h('input', {
-        class: 'input search', type: 'search', placeholder: 'Buscar por número, nome ou anotação', 'aria-label': 'Buscar presets', value: query,
-        oninput: (e) => { query = e.target.value.trim().toLowerCase(); draw(); },
-      }),
-      h('label', { class: 'check' },
-        h('input', { type: 'checkbox', checked: onlyFavorites, onchange: (e) => { onlyFavorites = e.target.checked; draw(); } }),
-        'Só favoritos')),
+    toolbar,
     grid,
     glossaryBlock());
   return { el, destroy: () => offs.forEach((off) => off()) };

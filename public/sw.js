@@ -2,7 +2,7 @@
 // Estratégia: entrega a cópia salva na hora e, se houver internet, atualiza em segundo plano
 // (a versão nova aparece na próxima vez que o app for aberto).
 
-const APP_CACHE = 'bbhub-app-v5';
+const APP_CACHE = 'bbhub-app-v6';
 const FONT_CACHE = 'bbhub-fonts';
 const ASSETS = [
   './',

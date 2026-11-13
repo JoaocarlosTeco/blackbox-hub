@@ -27,7 +27,9 @@ Atalhos no computador: **espaço** toca/para, **← →** trocam de preset, **T*
 
 1. Ligue o pedal na entrada USB-C do celular (cabo USB-C nos dois lados ou adaptador OTG).
 2. Abra o link do app no **Chrome** e toque em **Instalar app** (ou **Adicionar à tela inicial**).
-3. Toque em **Conectar pedal** e permita o acesso a dispositivos MIDI.
+3. Toque em **Conectar** (no topo) e permita o acesso a dispositivos MIDI.
+
+No celular, os presets aparecem em lista, com atalhos no topo para ir direto a P01, P11, P21... Toque no número para trocar o preset no pedal e em **⋯** para editar o som, ver os detalhes ou mudar nome e cor. O editor ocupa a tela inteira. Arrastar o dedo na vertical rola a tela sem mexer nos controles.
 
 Depois de aberto uma vez com internet, o app funciona **sem internet**. Para receber uma versão nova, abra uma vez conectado.
 

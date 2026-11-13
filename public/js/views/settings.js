@@ -43,11 +43,11 @@ export function render(app) {
 
   // ---- Áudio ----
   const sinkSelect = h('select', { class: 'input', 'aria-label': 'Saída de som da bateria', disabled: !app.engine.sinkSupported },
-    h('option', { value: '' }, 'Saída padrão do Windows'));
+    h('option', { value: '' }, 'Saída padrão do aparelho'));
   const fillSinks = async () => {
     const devices = await listOutputs();
     const opts = devices.filter((d) => d.deviceId && d.deviceId !== 'default' && d.deviceId !== 'communications');
-    sinkSelect.replaceChildren(h('option', { value: '' }, 'Saída padrão do Windows'),
+    sinkSelect.replaceChildren(h('option', { value: '' }, 'Saída padrão do aparelho'),
       ...opts.map((d, i) => h('option', { value: d.deviceId }, d.label || `Saída ${i + 1}`)));
     sinkSelect.value = s.audio.sinkId && opts.some((d) => d.deviceId === s.audio.sinkId) ? s.audio.sinkId : '';
     const pedalOut = opts.find((d) => /usb-?audio/i.test(d.label));
@@ -98,7 +98,7 @@ export function render(app) {
           type: 'range', min: 0, max: 60, value: Math.round(s.audio.reverb * 100), 'aria-label': 'Ambiência da bateria',
           oninput: (e) => { const v = Number(e.target.value) / 100; verbOut.textContent = `${e.target.value}%`; app.engine.setReverb(v); app.store.update((st) => { st.audio.reverb = v; }, { render: false }); },
         }))),
-    h('p', { class: 'muted small' }, 'O volume do PC que chega ao pedal é controlado pelo volume do Windows; o knob MASTER do pedal controla só a guitarra.'));
+    h('p', { class: 'muted small' }, 'O volume da bateria que chega ao pedal é controlado pelo volume do computador ou do celular; o knob MASTER do pedal controla só a guitarra.'));
 
   // ---- Footswitch externo ----
   const foot = h('section', { class: 'block' },

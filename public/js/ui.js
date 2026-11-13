@@ -65,6 +65,7 @@ const PATHS = {
   info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.8v.4"/>',
   copy2: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
   foot: '<rect x="5" y="3" width="14" height="18" rx="3"/><circle cx="12" cy="15" r="2.6"/><path d="M9 7h6"/>',
+  more: '<circle cx="5.5" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.7" fill="currentColor" stroke="none"/>',
   sliders: '<path d="M7 4v16M17 4v16M12 4v16"/><rect x="4.5" y="13" width="5" height="3.2" rx="1.2" fill="var(--case-2)"/><rect x="9.5" y="7" width="5" height="3.2" rx="1.2" fill="var(--case-2)"/><rect x="14.5" y="11" width="5" height="3.2" rx="1.2" fill="var(--case-2)"/>',
 };
 

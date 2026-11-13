@@ -183,7 +183,7 @@ const app = {
     try {
       await engine.setSink(id);
       store.update((s) => { s.audio.sinkId = id; s.audio.sinkLabel = label || ''; });
-      toast(id ? `Bateria saindo em: ${label}` : 'Bateria na saída padrão do Windows.', 'ok');
+      toast(id ? `Bateria saindo em: ${label}` : 'Bateria na saída padrão do aparelho.', 'ok');
     } catch (e) {
       toast(`Não deu para usar essa saída: ${e.message}`, 'warn');
     }
@@ -417,19 +417,20 @@ const main = h('main', { class: 'main', id: 'main', tabindex: '-1' });
 const railLed = h('span', { class: 'rail-led', 'aria-hidden': 'true' });
 root.append(h('a', { class: 'skip', href: '#main' }, 'Pular para o conteúdo'), h('div', { class: 'shell' }, rail, nav, main));
 
+// [tom, texto, texto curto para o celular]
 const CONN = {
-  connected: ['ok', 'Pedal conectado'],
-  'no-device': ['bad', 'Pedal não encontrado'],
-  denied: ['bad', 'MIDI bloqueado'],
-  unsupported: ['bad', 'Navegador sem MIDI'],
-  idle: ['idle', 'Conectar pedal'],
+  connected: ['ok', 'Pedal conectado', ''],
+  'no-device': ['bad', 'Pedal não encontrado', 'Sem pedal'],
+  denied: ['bad', 'MIDI bloqueado', 'Bloqueado'],
+  unsupported: ['bad', 'Navegador sem MIDI', 'Sem MIDI'],
+  idle: ['idle', 'Conectar pedal', 'Conectar'],
 };
 
 function renderRail() {
   const s = store.get();
   const cur = s.currentPreset;
   const info = app.presetInfo(cur);
-  const [tone, text] = midi.simulator ? ['ok', 'Pedal simulado'] : CONN[midi.status] || CONN.idle;
+  const [tone, text, short] = midi.simulator ? ['ok', 'Pedal simulado', ''] : CONN[midi.status] || CONN.idle;
   const playing = engine.playing;
   const song = app.rt.mode === 'song' ? s.songs.find((x) => x.id === app.rt.songId) : null;
   const nowLabel = song ? song.name : app.pattern(s.drums.patternId).name;
@@ -437,9 +438,10 @@ function renderRail() {
     h('a', { class: 'brand', href: '#/stage', 'aria-label': 'Black Box Hub: ir para o palco' },
       h('span', { class: 'brand-mark', 'aria-hidden': 'true' }), h('span', { class: 'brand-name' }, 'Black Box Hub')),
     h('button', {
-      class: `conn ${tone}`, type: 'button',
+      class: `conn ${tone}`, type: 'button', 'aria-label': text, title: text,
       onclick: () => (midi.status === 'idle' || midi.status === 'no-device' ? midi.connect() : app.go('settings')),
-    }, h('span', { class: 'conn-dot' }), h('span', { class: 'conn-label' }, text)),
+    }, h('span', { class: 'conn-dot' }), h('span', { class: 'conn-label', 'aria-hidden': 'true' }, text),
+    short ? h('span', { class: 'conn-short', 'aria-hidden': 'true' }, short) : null),
     h('button', { class: 'rail-preset', type: 'button', style: { '--pc': info.color || null }, onclick: () => app.go('presets'), title: 'Preset atual' },
       h('span', { class: 'rail-p' }, cur ? `P${pad2(cur)}` : 'P--'),
       h('span', { class: 'rail-pname' }, cur ? info.name || 'Sem nome' : 'Nenhum preset')),
